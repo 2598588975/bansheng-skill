@@ -1,0 +1,6 @@
+interface:
+  display_name: "半生｜古风历史真人电影提示词"
+  short_description: "从大致剧情生成分镜与MJ提示词，选图后编写Kling O3视频提示词及手动操作指导"
+  default_prompt: "使用 $bansheng，根据我的大致剧情先给出古风历史感真人电影分镜和MJ图片提示词；选图回传后再写匹配首帧的Kling O3视频提示词，并告诉我如何手动生成。"
+policy:
+  allow_implicit_invocation: true
