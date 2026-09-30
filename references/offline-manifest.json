@@ -1,0 +1,30 @@
+{
+  "snapshotDate": "2026-09-30",
+  "sourceUrl": "https://www.liblib.tv/canvas?projectId=ea3601395fc44d7eb962b3f75270b247&spaceId=10244732",
+  "promptCount": 81,
+  "contextCount": 4,
+  "nodeCount": 150,
+  "sourceArchiveSha256": "fc719569753b9325aa535aa8121a6a4886c215a9890d0b967a7535bbe4dfd8f9",
+  "files": [
+    {
+      "path": "source-corpus.json",
+      "bytes": 342952,
+      "sha256": "6650d136d3e1c5a680975b5f0992ae896f5a78881ed13708861f5ffe5797fcb7"
+    },
+    {
+      "path": "source-prompts.md",
+      "bytes": 96444,
+      "sha256": "91457e3a79b3fb2b63e224749db02c8a1e776886c37793893d791d133c0d5452"
+    },
+    {
+      "path": "source-context.md",
+      "bytes": 2309,
+      "sha256": "92192b321e66945569dbe03a3d04755a773e77dd3d9b761b1319d3bb29ffabbb"
+    },
+    {
+      "path": "source-index.md",
+      "bytes": 13492,
+      "sha256": "b23c929e293dc0e56f7cfe741478fcf806efd29536575516d000b9ec6d1f4e4f"
+    }
+  ]
+}
