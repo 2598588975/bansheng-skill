@@ -63,6 +63,24 @@ def seconds(value, label):
     return result
 
 
+def render_image_settings(settings, image):
+    require(isinstance(settings, dict) and set(settings) == {"stylize", "weird", "chaos"}, "image_settings必须单列stylize、weird、chaos三个设置")
+    for key, maximum in (("stylize", 1000), ("weird", 3000), ("chaos", 100)):
+        require(type(settings[key]) is int and 0 <= settings[key] <= maximum, f"{key}必须是0到{maximum}的整数")
+    parameters = image["parameters"]
+    ratio = re.findall(r"(?:^|\s)--ar\s+(\d+:\d+)(?=\s|$)", parameters)
+    version = re.findall(r"(?:^|\s)--v\s+(\d+(?:\.\d+)?)(?=\s|$)", parameters)
+    require(len(ratio) == 1 and len(version) == 1, "五项设置表需要唯一明确的--ar与--v")
+    for key, aliases in (("stylize", "s|stylize"), ("weird", "weird|w"), ("chaos", "chaos|c")):
+        occurrences = re.findall(rf"(?:^|\s)--(?:{aliases})(?=\s|$)", parameters)
+        values = re.findall(rf"(?:^|\s)--(?:{aliases})\s+([^\s]+)", parameters)
+        require(len(occurrences) == len(values) and len(values) <= 1, f"{key}后缀缺值或重复")
+        if values:
+            require(re.fullmatch(r"\d+", values[0]) is not None and int(values[0]) == settings[key], f"{key}后缀与单列设置不一致")
+    rows = (("画幅", ratio[0]), ("版本", "V" + version[0]), ("风格化程度", settings["stylize"]), ("怪异度", settings["weird"]), ("多样性（随机性）", settings["chaos"]))
+    return "本镜生图设置（建议值）：\n\n| 设置 | 数值 |\n| --- | --- |\n" + "\n".join(f"| {label} | {value} |" for label, value in rows) + "\n"
+
+
 def render_video(video):
     require(isinstance(video, dict), "video必须是字段对象")
     require(set(video) == VIDEO_FIELDS, "视频字段缺失或增加了第七段/未规定字段")
@@ -104,13 +122,15 @@ def render_packet(packet):
     seen = set()
     blocks = []
     for shot in shots:
-        required = {"id"} | ({"image"} if stage == "images" else {"video"} if stage == "videos" else {"image", "video"})
+        required = {"id"} | ({"image", "image_settings"} if stage == "images" else {"video"} if stage == "videos" else {"image", "image_settings", "video"})
         require(isinstance(shot, dict) and set(shot) == required, "镜头字段与stage不对应")
         shot_id = single_line(shot["id"], "镜号")
         require(re.fullmatch(r"S\d{2,}", shot_id) is not None and shot_id not in seen, "镜号必须为唯一S01格式")
         seen.add(shot_id)
         if stage in {"images", "both"}:
-            blocks.append(f"### {shot_id} · MJ图片提示词\n\n```text\n{render_image(shot['image'])}\n```\n")
+            prompt = render_image(shot['image'])
+            settings_table = render_image_settings(shot['image_settings'], shot['image'])
+            blocks.append(f"### {shot_id} · MJ图片提示词\n\n```text\n{prompt}\n```\n\n{settings_table}")
         if stage in {"videos", "both"}:
             video = shot["video"]
             prompt = render_video(video)

@@ -41,6 +41,7 @@ VIDEO = {
     "声音": "细雨与轻微呼吸，人物不说话",
     "否定控制": "无换脸、手指融合和道具形变；无字幕、无Logo和水印，不生成BGM",
 }
+IMAGE_SETTINGS = {"stylize": 50, "weird": 0, "chaos": 0}
 
 
 class ContractTests(unittest.TestCase):
@@ -137,12 +138,71 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(len(contract.render_video(bad).split("\n\n")), 6)
 
     def test_duplicate_shots_rejected(self):
-        packet = {"stage": "images", "shots": [{"id": "S01", "image": IMAGE}, {"id": "S01", "image": IMAGE}]}
+        packet = {"stage": "images", "shots": [{"id": "S01", "image": IMAGE, "image_settings": IMAGE_SETTINGS}, {"id": "S01", "image": IMAGE, "image_settings": IMAGE_SETTINGS}]}
         with self.assertRaises(contract.ContractError):
             contract.render_packet(packet)
 
+    def test_each_image_has_five_explicit_settings(self):
+        packet = {"stage": "images", "shots": [{"id": shot, "image": IMAGE, "image_settings": IMAGE_SETTINGS} for shot in ("S01", "S02")]}
+        rendered = contract.render_packet(packet)
+        for label, value in (("画幅", "16:9"), ("版本", "V8.2"), ("风格化程度", 50), ("怪异度", 0), ("多样性（随机性）", 0)):
+            self.assertEqual(rendered.count(f"| {label} | {value} |"), 2)
+
+    def test_missing_settings_rejected(self):
+        with self.assertRaises(contract.ContractError):
+            contract.render_packet({"stage": "images", "shots": [{"id": "S01", "image": IMAGE}]})
+        bad = dict(IMAGE_SETTINGS)
+        del bad["weird"]
+        with self.assertRaises(contract.ContractError):
+            contract.render_image_settings(bad, IMAGE)
+
+    def test_settings_must_match_all_present_suffixes(self):
+        for parameters in ("--ar 16:9 --v 8.2 --s 200 --chaos 0", "--ar 16:9 --v 8.2 --s 50 --chaos 5", "--ar 16:9 --v 8.2 --s 50 --chaos 0 --w 50"):
+            with self.subTest(parameters=parameters), self.assertRaises(contract.ContractError):
+                contract.render_image_settings(IMAGE_SETTINGS, {**IMAGE, "parameters": parameters})
+
+    def test_settings_ranges_and_integer_types(self):
+        for key, value in (("stylize", 1001), ("weird", 3001), ("chaos", 101), ("weird", -1), ("chaos", True), ("stylize", 50.5)):
+            with self.subTest(key=key, value=value), self.assertRaises(contract.ContractError):
+                contract.render_image_settings({**IMAGE_SETTINGS, key: value}, IMAGE)
+
+    def test_duplicate_alias_and_missing_suffix_value_rejected(self):
+        for suffix in (" --stylize 50", " --s"):
+            with self.subTest(suffix=suffix), self.assertRaises(contract.ContractError):
+                contract.render_image_settings(IMAGE_SETTINGS, {**IMAGE, "parameters": IMAGE["parameters"] + suffix})
+
+    def test_settings_table_requires_one_version(self):
+        for parameters in ("--ar 16:9 --s 50 --chaos 0", IMAGE["parameters"] + " --v 8.1"):
+            with self.subTest(parameters=parameters), self.assertRaises(contract.ContractError):
+                contract.render_image_settings(IMAGE_SETTINGS, {**IMAGE, "parameters": parameters})
+
+    def test_video_only_packet_does_not_require_image_settings(self):
+        rendered = contract.render_packet({"stage": "videos", "shots": [{"id": "S01", "video": VIDEO}]})
+        self.assertIn("预案，待成图校准", rendered)
+        self.assertNotIn("本镜生图设置", rendered)
+
 
 class ArchiveTests(unittest.TestCase):
+    def test_palace_archive_hashes_and_verbatim_contents(self):
+        base = SKILL / "references"
+        manifest = json.loads((base / "palace-offline-manifest.json").read_text(encoding="utf-8"))
+        for item in manifest["files"]:
+            blob = (base / item["path"]).read_bytes()
+            self.assertEqual(len(blob), item["bytes"])
+            self.assertEqual(hashlib.sha256(blob).hexdigest(), item["sha256"])
+        corpus = json.loads((base / "palace-source-corpus.json").read_text(encoding="utf-8"))
+        records = corpus["records"]
+        self.assertEqual(len(records), 77)
+        self.assertEqual(len({r["id"] for r in records}), 77)
+        self.assertEqual(sum(r["kind"] == "image-prompt" for r in records), 50)
+        self.assertEqual(sum(r["kind"] == "video-prompt" for r in records), 17)
+        self.assertEqual(sum(r["kind"] == "no-independent-prompt" for r in records), 9)
+        for filename, kinds, count in (("palace-source-prompts.md", {"image-prompt", "video-prompt"}, 67), ("palace-source-context.md", {"context"}, 1)):
+            extracted = re.findall(r"^````text\n(.*?)\n````$", (base / filename).read_text(encoding="utf-8"), re.M | re.S)
+            expected = [r["prompt"] for r in records if r["kind"] in kinds]
+            self.assertEqual(extracted, expected)
+            self.assertEqual(len(extracted), count)
+
     def test_offline_hashes_and_coverage(self):
         base = SKILL / "references"
         manifest = json.loads((base / "offline-manifest.json").read_text(encoding="utf-8"))

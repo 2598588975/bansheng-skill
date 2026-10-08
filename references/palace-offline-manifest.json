@@ -1,0 +1,35 @@
+{
+  "snapshotDate": "2026-10-08",
+  "sourceUrl": "https://www.liblib.tv/canvas?projectId=929882efdff84e4885d717cb39e0e1fd&spaceId=10751545",
+  "counts": {
+    "canvasNodes": 81,
+    "groups": 4,
+    "independentNodes": 77,
+    "imagePrompts": 50,
+    "videoPrompts": 17,
+    "contextRecords": 1,
+    "noIndependentPrompt": 9
+  },
+  "files": [
+    {
+      "path": "palace-source-prompts.md",
+      "bytes": 86032,
+      "sha256": "4808c1fd4687ce4e436583e0dbb609122601ecd451e18d2de46b82979f9e629e"
+    },
+    {
+      "path": "palace-source-context.md",
+      "bytes": 2143,
+      "sha256": "e0d6f81c184189fccf25b0c9168e7b68cda34f87c147085134d69a1050a0b2db"
+    },
+    {
+      "path": "palace-source-corpus.json",
+      "bytes": 105970,
+      "sha256": "50608ac591861e8f1e25cfc02549629fd0614d740b7a83972306a3910d147044"
+    },
+    {
+      "path": "palace-source-index.md",
+      "bytes": 8871,
+      "sha256": "bf5f04b4d907c08784d59268b0e244afc46d2cea3db20e1cfaa66cd2801c9aaa"
+    }
+  ]
+}
