@@ -69,12 +69,22 @@
 
 最终匹配版必须绑定镜号和已实际观察的选定图片；未观察图片只能写“待成图校准”的预案，不得声称严格匹配了未见图像。两种状态使用相同六段格式。
 
+## 视频（Seedance 2.5分支）：一个代码块、严格六段、标签固定
+
+仅在走Seedance分支时使用，完整规则见 [seedance-25.md](seedance-25.md)。标签依次为`总控：`、`参考素材：`、`首帧状态：`、`时间轴：`、`声音：`、`否定控制：`，段间恰好一个空行，不得与Kling六段标签混用。
+
+- `总控：`以“[总秒数]秒连续段落，[画幅]”开头，总秒数不超过30且不超过用户界面可选时长，含“真人实拍”与“历史电影”。
+- `参考素材：`每条为`@ImageN｜类型｜唯一职责｜保留：…｜不影响：…`，以中文分号连接；无素材写“无”。有角色锚点卡时必须有一条职责为“身份与服装”。
+- `时间轴：`从0.00连续到总秒数，两位小数；每段为`起–止秒 S0N：机位…；动作…；对白…；结束…`。
+- `声音：`单列，默认不生成BGM；有对白时不写“无声”。
+- 预案/最终匹配版的区分同Kling。
+
 ## 交付前检查表
 
 1. 当前镜号是否有完整图片八项，或完整视频六段？
 2. 代码块数量与镜数对应，代码块外的解释没有混入提示词吗？
 3. 图片是否单段、顺序正确、只有静态瞬间、参数在尾部且画幅一致？
-4. 视频标签是否逐字正确、顺序固定、恰好六段，声音是否在情节内？
+4. 视频平台是否明确；Kling/Seedance标签是否逐字正确、顺序固定、恰好六段，声音是否在情节内？
 5. 时间轴是否两位小数、从0连续至T，正文/建议/设置是否一致？
 6. 最终版是否看过图片，首帧锚点是否都来自该图？没有图时是否明确为预案？
 7. 道具、光线、表演与动作能否执行？无人镜头没有强行写脸和口型吗？
@@ -86,7 +96,7 @@
 
 用scripts/check_prompts.py把分字段草稿渲染成固定格式，可同时验证画幅、字段完整性、六段标签、时间轴与实际看图门槛。它不联网、不生成素材、不修改底版，只读指定JSON文件并可输出Markdown。
 
-草稿JSON使用UTF-8：顶层`stage`为`images`、`videos`或`both`，`shots`为镜头列表。每镜有唯一`id`。图片对象字段为`frame`、`shot`、`subject`、`composition`、`scene`、`lighting`、`photography`、`material`、`parameters`。有图片的镜头必须另含与`image`同级的`image_settings`，恰有三个整数键`stylize`、`weird`、`chaos`，例如`{"stylize":50,"weird":0,"chaos":0}`；脚本从`--ar`与`--v`读取画幅和版本，一起生成五行设置表。视频对象字段为`status`（`provisional`/`final`）、`image_id`、`image_observed`、`duration`、`主体`、`场景`、`拍摄风格`、`光影构图`、`情节`（start/end/action的列表）、`声音`、`否定控制`。start/end为两位小数字符串。
+草稿JSON使用UTF-8：顶层`stage`为`images`、`videos`或`both`，`shots`为镜头列表。每镜有唯一`id`。图片对象字段为`frame`、`shot`、`subject`、`composition`、`scene`、`lighting`、`photography`、`material`、`parameters`。有图片的镜头必须另含与`image`同级的`image_settings`，恰有三个整数键`stylize`、`weird`、`chaos`，例如`{"stylize":50,"weird":0,"chaos":0}`；脚本从`--ar`与`--v`读取画幅和版本，一起生成五行设置表。视频对象字段为`status`（`provisional`/`final`）、`image_id`、`image_observed`、`duration`、`主体`、`场景`、`拍摄风格`、`光影构图`、`情节`（start/end/action的列表）、`声音`、`否定控制`。start/end为两位小数字符串。视频对象可加`platform`：缺省或`"kling"`按上述Kling字段校验（旧草稿不改即可通过）；`"seedance"`时字段为`platform`、`status`、`image_observed`、`duration`、`aspect`、`总控`、`参考素材`（tag/type/job/keep/avoid对象列表，可为空）、`首帧状态`、`时间轴`（start/end/shot/camera/action/dialogue/end_state列表）、`声音`、`否定控制`；顶层可加`"role_anchor": true`，要求每个Seedance段有“身份与服装”参考。
 
 ```text
 python scripts/check_prompts.py --input 本次草稿.json --render 本次提示词.md

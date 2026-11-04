@@ -1,0 +1,11 @@
+{
+  "savedDate": "2026-10-12",
+  "algorithm": "SHA-256",
+  "note": "Archive integrity only; not a proof of historical generation settings or authorship.",
+  "files": {
+    "portrait-source-index.md": "12805dd1444d93fb6c8731bffe5bd5b99a352b0783fcd41d67d2cf2f8de1d384",
+    "portrait-source-prompts.md": "14820855722aad6d0cc09316e277183c25a12b39f1061cd86f5cab0b6c403c11",
+    "portrait-source-context.md": "a7b5272a8e4d4b153f67d490a2d19b7d3dc7150219a182b3ffc89e3a1bb4e8b2",
+    "portrait-source-corpus.json": "016e0cf22d6bdbee3921ec7ad7e684ca110334dd74e6c51bb1b4370fdc3ed81b"
+  }
+}

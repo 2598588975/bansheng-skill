@@ -8,6 +8,9 @@ import sys
 
 IMAGE_FIELDS = ("frame", "shot", "subject", "composition", "scene", "lighting", "photography", "material", "parameters")
 VIDEO_LABELS = ("主体", "场景", "拍摄风格", "光影构图", "情节", "否定控制")
+SEEDANCE_LABELS = ("总控", "参考素材", "首帧状态", "时间轴", "声音", "否定控制")
+SEEDANCE_FIELDS = {"platform", "status", "image_observed", "duration", "aspect", "总控", "参考素材", "首帧状态", "时间轴", "声音", "否定控制"}
+SEEDANCE_MAX_SECONDS = Decimal("30")
 VIDEO_FIELDS = {"status", "image_id", "image_observed", "duration", "主体", "场景", "拍摄风格", "光影构图", "情节", "声音", "否定控制"}
 
 
@@ -81,8 +84,69 @@ def render_image_settings(settings, image):
     return "本镜生图设置（建议值）：\n\n| 设置 | 数值 |\n| --- | --- |\n" + "\n".join(f"| {label} | {value} |" for label, value in rows) + "\n"
 
 
-def render_video(video):
+def render_seedance(video, role_anchor=False):
+    require(set(video) == SEEDANCE_FIELDS, "Seedance字段缺失或增加了未规定字段")
+    require(video["status"] in {"provisional", "final"}, "status必须为provisional或final")
+    require(type(video["image_observed"]) is bool, "image_observed必须是布尔值")
+    if video["status"] == "final":
+        require(video["image_observed"], "未实际观察首帧/参考图，不能交付最终匹配版")
+    duration = seconds(video["duration"], "duration")
+    require(Decimal("0") < duration <= SEEDANCE_MAX_SECONDS, "Seedance单次总时长必须大于0且不超过30秒（并以界面可选值为准）")
+    aspect = video["aspect"]
+    require(isinstance(aspect, str) and re.fullmatch(r"\d+:\d+", aspect) is not None, "aspect必须为数字画幅")
+    text = {key: single_line(video[key], key) for key in ("总控", "首帧状态", "声音", "否定控制")}
+    head = re.match(r"(\d+(?:\.\d+)?)秒连续段落，(\d+:\d+)", text["总控"])
+    require(head is not None and seconds(head.group(1), "总控时长") == duration and head.group(2) == aspect, "总控须以“N秒连续段落，画幅”开头且与duration/aspect一致")
+    require("真人实拍" in text["总控"] and "历史电影" in text["总控"], "总控必须保留真人实拍历史电影质感")
+    require("BGM" in text["声音"], "声音段须写明BGM方案（默认不生成BGM）")
+    refs = video["参考素材"]
+    require(isinstance(refs, list), "参考素材必须是列表（无素材用空列表）")
+    tags, items = set(), []
+    for ref in refs:
+        require(isinstance(ref, dict) and set(ref) == {"tag", "type", "job", "keep", "avoid"}, "参考素材字段必须为tag/type/job/keep/avoid")
+        tag = single_line(ref["tag"], "tag")
+        require(re.fullmatch(r"@(?:Image|Video|Audio)\d+", tag) is not None and tag not in tags, "素材标签须为唯一的@ImageN/@VideoN/@AudioN")
+        tags.add(tag)
+        job = single_line(ref["job"], "job")
+        require(not re.search(r"[、,，和与]", job) or job == "身份与服装", "每个素材只承担一个职责")
+        items.append(f"{tag}｜{single_line(ref['type'], 'type')}｜{job}｜保留：{clause(single_line(ref['keep'], 'keep'))}｜不影响：{clause(single_line(ref['avoid'], 'avoid'))}")
+    if role_anchor:
+        require(any(ref["job"] == "身份与服装" for ref in refs), "已建角色锚点卡，须有一条职责为“身份与服装”的参考")
+    text["参考素材"] = "；".join(items) if items else "无"
+    timeline = video["时间轴"]
+    require(isinstance(timeline, list) and bool(timeline), "时间轴必须有时间段")
+    cursor, beats = Decimal("0.00"), []
+    for beat in timeline:
+        require(isinstance(beat, dict) and set(beat) == {"start", "end", "shot", "camera", "action", "dialogue", "end_state"}, "时间段字段必须为start/end/shot/camera/action/dialogue/end_state")
+        for key in ("start", "end"):
+            require(isinstance(beat[key], str) and re.fullmatch(r"\d+\.\d{2}", beat[key]), "时间点必须为两位小数字符串")
+        start, end = seconds(beat["start"], "start"), seconds(beat["end"], "end")
+        require(start == cursor, "时间轴必须从0连续，不能重叠或留空档")
+        require(end > start, "时间段必须具有正时长")
+        shot = single_line(beat["shot"], "shot")
+        require(re.fullmatch(r"S\d{2,}", shot) is not None, "时间段镜号必须为S01格式")
+        parts = [single_line(beat[k], k) for k in ("camera", "action", "end_state")]
+        for p in parts:
+            require(not re.search(r"同上|继续上一镜|保持上一镜", p), "切镜须完整写出新状态，不能写“同上/继续上一镜”")
+        require(isinstance(beat["dialogue"], str) and len(beat["dialogue"].splitlines()) <= 1, "dialogue必须是单行文字（无对白可写“无”）")
+        dialogue = beat["dialogue"].strip() or "无"
+        beats.append(f"{beat['start']}–{beat['end']}秒 {shot}：机位{clause(parts[0])}；动作{clause(parts[1])}；对白{clause(dialogue)}；结束{clause(parts[2])}")
+        cursor = end
+    require(cursor == duration, "时间轴终点与总时长不一致")
+    if any(b["dialogue"].strip() not in {"", "无"} for b in timeline):
+        require("无声" not in text["声音"], "有对白时声音段不能写无声")
+    text["时间轴"] = "；".join(beats) + "。"
+    return "\n\n".join(label + "：" + text[label] for label in SEEDANCE_LABELS)
+
+
+def render_video(video, role_anchor=False):
     require(isinstance(video, dict), "video必须是字段对象")
+    platform = video.get("platform", "kling")
+    require(platform in {"kling", "seedance"}, "platform必须为kling或seedance")
+    if platform == "seedance":
+        return render_seedance(video, role_anchor)
+    if "platform" in video:
+        video = {k: v for k, v in video.items() if k != "platform"}
     require(set(video) == VIDEO_FIELDS, "视频字段缺失或增加了第七段/未规定字段")
     require(video["status"] in {"provisional", "final"}, "status必须为provisional或final")
     require(type(video["image_observed"]) is bool, "image_observed必须是布尔值")
@@ -114,7 +178,9 @@ def render_video(video):
 
 
 def render_packet(packet):
-    require(isinstance(packet, dict) and set(packet) == {"stage", "shots"}, "顶层字段必须是stage/shots")
+    require(isinstance(packet, dict) and set(packet) in ({"stage", "shots"}, {"stage", "shots", "role_anchor"}), "顶层字段必须是stage/shots（可选role_anchor）")
+    role_anchor = packet.get("role_anchor", False)
+    require(type(role_anchor) is bool, "role_anchor必须是布尔值")
     stage = packet["stage"]
     require(stage in {"images", "videos", "both"}, "stage必须为images/videos/both")
     shots = packet["shots"]
@@ -133,9 +199,10 @@ def render_packet(packet):
             blocks.append(f"### {shot_id} · MJ图片提示词\n\n```text\n{prompt}\n```\n\n{settings_table}")
         if stage in {"videos", "both"}:
             video = shot["video"]
-            prompt = render_video(video)
+            prompt = render_video(video, role_anchor)
             status = "最终匹配版" if video["status"] == "final" else "预案，待成图校准"
-            blocks.append(f"### {shot_id} · Kling O3视频提示词（{status}）\n\n```text\n{prompt}\n```\n")
+            name = "Seedance 2.5" if video.get("platform") == "seedance" else "Kling O3"
+            blocks.append(f"### {shot_id} · {name}视频提示词（{status}）\n\n```text\n{prompt}\n```\n")
     return "\n".join(blocks)
 
 
